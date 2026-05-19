@@ -10,10 +10,23 @@ from hsp_payment_service.infrastructure.db import (
     create_session_factory,
     init_db,
 )
-from hsp_payment_service.repository.in_memory import InMemoryEchoRepository
-from hsp_payment_service.repository.interfaces import EchoRepository
-from hsp_payment_service.repository.mysql import SQLAlchemyEchoRepository
+from hsp_payment_service.repository.in_memory import (
+    InMemoryEchoRepository,
+    InMemoryPaymentRepository,
+    InMemoryWorkerIncomeRepository,
+)
+from hsp_payment_service.repository.interfaces import (
+    EchoRepository,
+    PaymentRepository,
+    WorkerIncomeRepository,
+)
+from hsp_payment_service.repository.mysql import (
+    SQLAlchemyEchoRepository,
+    SQLAlchemyPaymentRepository,
+    SQLAlchemyWorkerIncomeRepository,
+)
 from hsp_payment_service.service.echo_service import EchoService
+from hsp_payment_service.service.payment_service import PaymentService
 from hsp_payment_service.transport.grpc.server import build_grpc_server
 from hsp_payment_service.transport.http.app import create_http_app
 
@@ -24,35 +37,48 @@ class AppContainer:
     engine: AsyncEngine | None
     session_factory: async_sessionmaker[AsyncSession] | None
     echo_repository: EchoRepository
+    payment_repository: PaymentRepository
+    income_repository: WorkerIncomeRepository
     echo_service: EchoService
+    payment_service: PaymentService
     http_app: FastAPI
     grpc_server: grpc.aio.Server
 
 
 async def build_container() -> AppContainer:
     settings = get_settings()
-    repository: EchoRepository
+    echo_repository: EchoRepository
+    payment_repository: PaymentRepository
+    income_repository: WorkerIncomeRepository
 
     if settings.use_mock_repository:
         engine = None
         session_factory = None
-        repository = InMemoryEchoRepository()
+        echo_repository = InMemoryEchoRepository()
+        payment_repository = InMemoryPaymentRepository()
+        income_repository = InMemoryWorkerIncomeRepository()
     else:
         engine = create_engine(settings.mysql_dsn)
         await init_db(engine)
         session_factory = create_session_factory(engine)
-        repository = SQLAlchemyEchoRepository(session_factory)
+        echo_repository = SQLAlchemyEchoRepository(session_factory)
+        payment_repository = SQLAlchemyPaymentRepository(session_factory)
+        income_repository = SQLAlchemyWorkerIncomeRepository(session_factory)
 
-    echo_service = EchoService(repository)
-    http_app = create_http_app(echo_service)
-    grpc_server = build_grpc_server(settings, echo_service)
+    echo_service = EchoService(echo_repository)
+    payment_service = PaymentService(payment_repository, income_repository)
+    http_app = create_http_app(echo_service, payment_service)
+    grpc_server = build_grpc_server(settings, echo_service, payment_service)
 
     return AppContainer(
         settings=settings,
         engine=engine,
         session_factory=session_factory,
-        echo_repository=repository,
+        echo_repository=echo_repository,
+        payment_repository=payment_repository,
+        income_repository=income_repository,
         echo_service=echo_service,
+        payment_service=payment_service,
         http_app=http_app,
         grpc_server=grpc_server,
     )

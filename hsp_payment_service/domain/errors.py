@@ -8,3 +8,7 @@ class ValidationError(DomainError):
 
 class NotFoundError(DomainError):
     """Raised when entity does not exist."""
+
+
+class DuplicateError(DomainError):
+    """Raised when a duplicate entity is created."""

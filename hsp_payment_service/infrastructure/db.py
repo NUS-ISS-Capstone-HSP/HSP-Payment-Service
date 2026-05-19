@@ -20,7 +20,11 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
 
 
 async def init_db(engine: AsyncEngine) -> None:
-    from hsp_payment_service.infrastructure.orm import EchoRecordORM  # noqa: F401
+    from hsp_payment_service.infrastructure.orm import (  # noqa: F401
+        EchoRecordORM,
+        PaymentORM,
+        WorkerIncomeORM,
+    )
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

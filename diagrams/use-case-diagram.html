@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Use Case Diagram - Home Service Order & Dispatch Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f8f9fa; }
+  h1 { text-align: center; color: #1a365d; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #718096; margin-bottom: 24px; }
+  .diagram-container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .info { margin-top: 20px; padding: 16px; background: #ebf8ff; border-radius: 8px; border-left: 4px solid #3182ce; }
+  .info h3 { margin-top: 0; color: #2c5282; }
+</style>
+</head>
+<body>
+<h1>Home Service Order & Dispatch Platform</h1>
+<p class="subtitle">Use Case Diagram — System Functional Requirements Overview</p>
+<div class="diagram-container">
+<pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ebf4ff', 'primaryTextColor': '#1a365d', 'primaryBorderColor': '#3182ce', 'lineColor': '#4a5568', 'actorBkg': '#bee3f8', 'actorBorder': '#2b6cb0'}}}%%
+flowchart LR
+    subgraph External["👤 External Actors"]
+        Customer["🏠 Customer"]
+        CSR["📞 Customer Service Staff"]
+        Worker["👷 Worker"]
+        Owner["💼 Owner / Admin"]
+    end
+
+    subgraph System["🏗️ HSP Platform"]
+        direction TB
+
+        subgraph UserMgmt["Module 01: User Management"]
+            UC_Register["Register / Login"]
+            UC_RBAC["Role-Based Access Control"]
+            UC_WorkerAcct["Worker Account Management"]
+        end
+
+        subgraph OrderMgmt["Module 02: Order Management<br/>— 宇尘 (Yuchen)"]
+            UC_CreateOrder["Create Order<br/>(Structured Input)"]
+            UC_OrderStatus["Manage Order Status<br/>(Lifecycle)"]
+            UC_OrderQuery["Query & Filter Orders"]
+        end
+
+        subgraph Dispatch["Module 04: Dispatch System"]
+            UC_ManualDispatch["Manual Dispatch"]
+            UC_WorkerConfirm["Worker Confirm / Reject"]
+            UC_DispatchLog["Dispatch Log"]
+        end
+
+        subgraph Payment["Module 06: Payment & Settlement<br/>— 宇尘 (Yuchen)"]
+            UC_OnlinePay["Online Payment<br/>(WeChat Pay)"]
+            UC_RevenueBind["Revenue → Order Binding"]
+            UC_WorkerIncome["Auto Worker Income Calc"]
+        end
+
+        subgraph Execution["Module 05: Service Execution"]
+            UC_CheckIn["Service Start / End"]
+            UC_PhotoUpload["Service Photo Upload"]
+            UC_ServiceArchive["Service Record Archive"]
+        end
+
+        subgraph Schedule["Module 03: Worker Schedule"]
+            UC_WorkerProfile["Worker Profile Mgmt"]
+            UC_WorkerStatus["Real-Time Status"]
+            UC_Calendar["Scheduling Calendar"]
+        end
+
+        subgraph AfterSales["Module A: After-Sales (Advanced)"]
+            UC_Catalog["Service Catalog"]
+            UC_Rating["Customer Rating"]
+            UC_Complaint["Complaint Ticket System"]
+        end
+    end
+
+    %% Actor → Use Case connections
+    Customer --> UC_CreateOrder
+    Customer --> UC_OnlinePay
+    Customer --> UC_Rating
+    Customer --> UC_Complaint
+
+    CSR --> UC_CreateOrder
+    CSR --> UC_OrderStatus
+    CSR --> UC_OrderQuery
+    CSR --> UC_ManualDispatch
+    CSR --> UC_WorkerProfile
+
+    Worker --> UC_WorkerConfirm
+    Worker --> UC_CheckIn
+    Worker --> UC_PhotoUpload
+    Worker -.-> UC_Register
+    Worker -.-> UC_WorkerAcct
+
+    Owner --> UC_RevenueBind
+    Owner --> UC_WorkerIncome
+    Owner --> UC_OrderQuery
+    Owner --> UC_ServiceArchive
+    Owner --> UC_RBAC
+    Owner --> UC_Calendar
+
+    %% Internal relations
+    UC_CreateOrder --> UC_OrderStatus
+    UC_OrderStatus --> UC_ManualDispatch
+    UC_ManualDispatch --> UC_WorkerConfirm
+    UC_WorkerConfirm --> UC_CheckIn
+    UC_CheckIn --> UC_PhotoUpload
+    UC_CheckIn --> UC_OnlinePay
+    UC_OnlinePay --> UC_RevenueBind
+    UC_RevenueBind --> UC_WorkerIncome
+</pre>
+</div>
+<div class="info">
+  <h3>宇尘 (Zhang Yuchen) 负责模块</h3>
+  <p><strong>Module 02 — Order Management:</strong> 订单结构化创建、状态流转管理、订单查询与筛选</p>
+  <p><strong>Module 06 — Payment & Settlement:</strong> 在线支付生成、收入绑定订单、师傅收入自动结算</p>
+</div>
+<script>
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'loose', flowchart: { useMaxWidth: true, htmlLabels: true } });
+</script>
+</body>
+</html>

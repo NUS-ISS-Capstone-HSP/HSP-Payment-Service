@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequence Diagram - Payment Flow</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f8f9fa; }
+  h1 { text-align: center; color: #1a365d; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #718096; margin-bottom: 24px; }
+  .diagram-container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+  .diagram-container h3 { color: #2d3748; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+  .note { margin-top: 16px; padding: 12px; background: #fffff0; border-radius: 8px; border-left: 4px solid #ecc94b; }
+</style>
+</head>
+<body>
+<h1>Payment Service — Core Sequence Diagrams</h1>
+<p class="subtitle">负责: 宇尘 (Yuchen) &nbsp;|&nbsp; gRPC Service: hsp.finance.v1.FinanceService</p>
+
+<div class="diagram-container">
+<h3>1. Create Payment + Process Callback (US-6.1: 在线支付)</h3>
+<pre class="mermaid">
+sequenceDiagram
+    actor Customer as 👤 Customer
+    participant GW as 🌐 API Gateway
+    participant PS as 💰 Payment Service<br/>(gRPC :50051)
+    participant WX as 💬 WeChat Pay<br/>(Mock / Simulated)
+    participant DB as 🗄️ MySQL<br/>(hsp_payment)
+
+    Customer->>GW: POST /api/finance/v1/payments<br/>{order_id, amount, method=WECHAT}
+    GW->>GW: JWT Auth + RBAC check
+    GW->>PS: gRPC CreatePayment<br/>(order_id, amount, method)
+
+    PS->>PS: Validate: order_id + amount > 0
+    PS->>DB: Check existing payment for order_id
+    DB-->>PS: No existing payment
+
+    alt Duplicate payment
+        PS-->>GW: 409: payment already exists
+        GW-->>Customer: 409 Conflict
+    else New payment
+        PS->>PS: Generate UUID payment_id
+        PS->>PS: Set status = PENDING
+        PS->>DB: INSERT INTO payments VALUES (...)
+        DB-->>PS: Row inserted
+        PS-->>GW: {payment_id, status=PENDING, ...}
+        GW-->>Customer: 201 Created<br/>{payment_id, QR/redirect link}
+    end
+
+    Note over WX: Customer completes payment<br/>via WeChat Pay
+
+    WX->>GW: POST /api/finance/v1/payments/callback<br/>{payment_id, success=true}
+    GW->>PS: gRPC ProcessPaymentCallback<br/>(payment_id, success)
+
+    PS->>DB: SELECT * FROM payments WHERE payment_id=?
+    DB-->>PS: Payment record (status=PENDING)
+
+    alt Payment not found
+        PS-->>GW: NOT_FOUND
+    else Success callback
+        PS->>PS: Set status = COMPLETED
+        PS->>PS: Set paid_at = now()
+        PS->>DB: UPDATE payments SET status=?, paid_at=?
+        DB-->>PS: Row updated
+        PS-->>GW: {payment: {status=COMPLETED, ...}}
+        GW-->>WX: 200 OK
+    else Failed callback
+        PS->>PS: Set status = FAILED
+        PS->>DB: UPDATE payments SET status=?
+        PS-->>GW: {payment: {status=FAILED, ...}}
+    end
+</pre>
+</div>
+
+<div class="diagram-container">
+<h3>2. Worker Income Calculation (US-6.3: 师傅收入自动结算)</h3>
+<pre class="mermaid">
+sequenceDiagram
+    actor Admin as 👤 Admin / Owner
+    participant GW as 🌐 API Gateway
+    participant PS as 💰 Payment Service<br/>(gRPC :50051)
+    participant DB as 🗄️ MySQL<br/>(hsp_payment)
+
+    Admin->>GW: POST /api/finance/v1/incomes/calculate<br/>{order_id, worker_id, order_amount}
+    GW->>GW: JWT Auth + RBAC (OWNER only)
+    GW->>PS: gRPC CalculateWorkerIncome<br/>(order_id, worker_id, order_amount)
+
+    PS->>PS: Validate: order_id + worker_id present
+
+    alt Missing fields
+        PS-->>GW: INVALID_ARGUMENT
+        GW-->>Admin: 400 Bad Request
+    else Valid
+        PS->>PS: commission_rate = 0.7 (default)
+        PS->>PS: worker_amount = order_amount × 0.7<br/>Example: ¥500.00 × 0.7 = ¥350.00
+        PS->>DB: INSERT INTO worker_incomes<br/>(order_id, worker_id, order_amount,<br/>commission_rate, worker_amount)
+        DB-->>PS: Row inserted
+        PS-->>GW: {income: {income_id, worker_amount=350.00, ...}}
+        GW-->>Admin: 201 Created<br/>{income_id, worker_amount, commission_rate}
+    end
+</pre>
+</div>
+
+<div class="diagram-container">
+<h3>3. Revenue Summary Query (US-6.2: 收入统计)</h3>
+<pre class="mermaid">
+sequenceDiagram
+    actor Admin as 👤 Admin / Owner
+    participant GW as 🌐 API Gateway
+    participant PS as 💰 Payment Service
+    participant DB as 🗄️ MySQL
+
+    Admin->>GW: GET /api/finance/v1/summary<br/>?start_date=2026-01&end_date=2026-06
+    GW->>GW: JWT Auth + RBAC (OWNER only)
+    GW->>PS: gRPC GetRevenueSummary<br/>(start_date, end_date)
+
+    PS->>DB: SELECT SUM(amount)<br/>FROM payments WHERE status=COMPLETED<br/>AND paid_at BETWEEN start AND end
+    DB-->>PS: Total revenue: ¥15,200.00
+
+    PS->>DB: SELECT SUM(worker_amount)<br/>FROM worker_incomes<br/>WHERE created_at BETWEEN start AND end
+    DB-->>PS: Total payout: ¥10,640.00
+
+    PS->>PS: net_income = 15200 - 10640 = 4560.00
+
+    PS->>DB: COUNT total orders, COUNT paid orders
+    DB-->>PS: total=45, paid=38
+
+    PS-->>GW: {summary: {total_revenue, total_worker_payout, net_income, total_orders, paid_orders}}
+    GW-->>Admin: 200 OK<br/>{total_revenue, net_income, ...}
+</pre>
+</div>
+
+<div class="note">
+  <strong>Payment Service gRPC Methods:</strong><br>
+  <code>CreatePayment</code> — 生成支付单 &nbsp;|&nbsp;
+  <code>ProcessPaymentCallback</code> — 处理支付回调 &nbsp;|&nbsp;
+  <code>GetPayment</code> — 查询支付状态 &nbsp;|&nbsp;
+  <code>CalculateWorkerIncome</code> — 自动计算师傅收入 &nbsp;|&nbsp;
+  <code>GetRevenueSummary</code> — 收入汇总统计 &nbsp;|&nbsp;
+  <code>GetInvoice</code> — 获取账单 (向后兼容)
+</div>
+<script>mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });</script>
+</body>
+</html>
