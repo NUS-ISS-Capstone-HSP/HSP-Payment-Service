@@ -3,7 +3,6 @@ from typing import Protocol
 from hsp_payment_service.domain.models import (
     EchoRecord,
     Payment,
-    PaymentMethod,
     SourceType,
     WorkerIncome,
 )

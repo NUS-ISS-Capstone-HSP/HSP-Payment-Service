@@ -1,6 +1,7 @@
 from hsp_payment_service.domain.models import EchoRecord, Payment, WorkerIncome
 from hsp_payment_service.transport.http.schemas import (
     EchoRecordResponse,
+    GetRevenueSummaryResponse,
     PaymentResponse,
     RevenueSummaryResponse,
     WorkerIncomeResponse,
