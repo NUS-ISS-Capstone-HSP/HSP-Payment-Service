@@ -28,6 +28,14 @@ async def test_create_payment_success() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_payment_trims_order_id() -> None:
+    svc = build_service()
+    payment = await svc.create_payment("  order-001  ", 299.0)
+
+    assert payment.order_id == "order-001"
+
+
+@pytest.mark.asyncio
 async def test_create_payment_duplicate_raises() -> None:
     svc = build_service()
     await svc.create_payment("order-001", 100.0)
@@ -68,6 +76,13 @@ async def test_get_payment_not_found_raises() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_payment_empty_order_id_raises() -> None:
+    svc = build_service()
+    with pytest.raises(ValidationError):
+        await svc.get_payment("  ")
+
+
+@pytest.mark.asyncio
 async def test_process_payment_callback_success() -> None:
     svc = build_service()
     created = await svc.create_payment("order-001", 299.0)
@@ -94,6 +109,13 @@ async def test_process_payment_callback_not_found_raises() -> None:
 
 
 @pytest.mark.asyncio
+async def test_process_payment_callback_empty_payment_id_raises() -> None:
+    svc = build_service()
+    with pytest.raises(ValidationError):
+        await svc.process_payment_callback("  ", True)
+
+
+@pytest.mark.asyncio
 async def test_calculate_worker_income_success() -> None:
     svc = build_service()
     income = await svc.calculate_worker_income("order-001", "worker-1", 200.0)
@@ -108,10 +130,34 @@ async def test_calculate_worker_income_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_calculate_worker_income_validation_raises() -> None:
+async def test_calculate_worker_income_trims_ids_and_rounds_worker_amount() -> None:
+    svc = build_service()
+    income = await svc.calculate_worker_income("  order-001  ", "  worker-1  ", 33.33)
+
+    assert income.order_id == "order-001"
+    assert income.worker_id == "worker-1"
+    assert income.worker_amount == 23.33
+
+
+@pytest.mark.asyncio
+async def test_calculate_worker_income_empty_order_id_raises() -> None:
     svc = build_service()
     with pytest.raises(ValidationError):
         await svc.calculate_worker_income("", "worker-1", 100.0)
+
+
+@pytest.mark.asyncio
+async def test_calculate_worker_income_empty_worker_id_raises() -> None:
+    svc = build_service()
+    with pytest.raises(ValidationError):
+        await svc.calculate_worker_income("order-001", "  ", 100.0)
+
+
+@pytest.mark.asyncio
+async def test_calculate_worker_income_non_positive_amount_raises() -> None:
+    svc = build_service()
+    with pytest.raises(ValidationError):
+        await svc.calculate_worker_income("order-001", "worker-1", 0.0)
 
 
 @pytest.mark.asyncio

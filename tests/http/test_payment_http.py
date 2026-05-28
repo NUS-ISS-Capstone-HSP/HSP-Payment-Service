@@ -44,6 +44,16 @@ def test_create_payment_http_duplicate_returns_409() -> None:
     assert response.status_code == 409
 
 
+def test_create_payment_http_validation_returns_422() -> None:
+    client = build_client()
+    response = client.post(
+        "/api/payment/v1/payments",
+        json={"order_id": "bad-amount", "amount": 0.0},
+    )
+
+    assert response.status_code == 422
+
+
 def test_get_payment_http_success() -> None:
     client = build_client()
     client.post(
@@ -63,6 +73,14 @@ def test_get_payment_http_not_found_returns_404() -> None:
     assert response.status_code == 404
 
 
+def test_healthz_http_success() -> None:
+    client = build_client()
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_process_callback_http_success() -> None:
     client = build_client()
     created = client.post(
@@ -77,6 +95,16 @@ def test_process_callback_http_success() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "COMPLETED"
+
+
+def test_process_callback_http_not_found_returns_404() -> None:
+    client = build_client()
+    response = client.post(
+        "/api/payment/v1/payments/callback",
+        json={"payment_id": "missing-payment", "success": True},
+    )
+
+    assert response.status_code == 404
 
 
 def test_calculate_income_http_success() -> None:
@@ -94,6 +122,20 @@ def test_calculate_income_http_success() -> None:
     data = response.json()
     assert data["worker_amount"] == 70.0
     assert data["commission_rate"] == 0.7
+
+
+def test_calculate_income_http_validation_returns_422() -> None:
+    client = build_client()
+    response = client.post(
+        "/api/payment/v1/incomes",
+        json={
+            "order_id": "inc-test",
+            "worker_id": "worker-1",
+            "order_amount": 0.0,
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_revenue_summary_http_success() -> None:
