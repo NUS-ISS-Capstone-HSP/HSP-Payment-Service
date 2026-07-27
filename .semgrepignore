@@ -1,0 +1,9 @@
+# Generated/visual artifacts
+/diargam/
+/diagrams/
+
+# Build and CI configuration
+/Dockerfile
+/ci.yaml
+/.github/workflows/ci.yaml
+/.github/workflows/ci.yml
