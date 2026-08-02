@@ -141,6 +141,19 @@ jobs:
           docker build -t "${LOCAL_IMAGE}" .
           docker save "${LOCAL_IMAGE}" -o local-image.tar
 
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Snyk container scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          REPO_NAME="${REPO_NAME,,}"
+          snyk container test "local/${REPO_NAME}:${GITHUB_SHA}" \
+            --file=Dockerfile \
+            --severity-threshold=high
+
       - name: Security scan - trivy image
         continue-on-error: true
         uses: aquasecurity/trivy-action@0.35.0
